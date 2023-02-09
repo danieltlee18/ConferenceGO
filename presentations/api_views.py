@@ -1,8 +1,12 @@
 from django.http import JsonResponse
-
+from .encoders import PresentationListEncoder, PresentationDetailEncoder
 from .models import Presentation
+from django.views.decorators.http import require_http_methods
+import json
+from events.models import Conference
 
 
+@require_http_methods(["GET", "POST"])
 def api_list_presentations(request, conference_id):
     """
     Lists the presentation titles and the link to the
@@ -25,23 +29,35 @@ def api_list_presentations(request, conference_id):
         ]
     }
     """
-    response = []
-    presentations = Presentation.objects.all()
-    for presentation in presentations:
-        response.append(
-            {
-                "title": presentation.title,
-                "status": presentation.status.name,
-                "href": presentation.get_api_url(),
-            }
+    if request.method == "GET":
+        presentations = Presentation.objects.filter(conference=conference_id)
+        return JsonResponse(
+            {"presentations": presentations},
+            encoder=PresentationListEncoder,
         )
-    return JsonResponse({"presentations": response})
+    else:
+        content = json.loads(request.body)
+        try:
+            conference = Conference.objects.get(id=conference_id)
+            content["conference"] = conference
+        except Conference.DoesNotExist:
+            return JsonResponse(
+                {"message": "Invalid Conference ID"},
+                status=400,
+            )
+        presentation = Presentation.create(**content)
+        return JsonResponse(
+            presentation,
+            encoder=PresentationDetailEncoder,
+            safe=False
+        )
 
 
+@require_http_methods(["GET", "DELETE", "PUT"])
 def api_show_presentation(request, id):
     """
     Returns the details for the Presentation model specified
-    by the id parameter.
+    by the pk parameter.
 
     This should return a dictionary with the presenter's name,
     their company name, the presenter's email, the title of
@@ -63,19 +79,31 @@ def api_show_presentation(request, id):
         }
     }
     """
-    presentation = Presentation.objects.get(id=id)
-    return JsonResponse(
-        {
-            "presenter_name": presentation.presenter_name,
-            "company_name": presentation.company_name,
-            "presenter_email": presentation.presenter_email,
-            "title": presentation.title,
-            "synopsis": presentation.synopsis,
-            "created": presentation.created,
-            "status": presentation.status.name,
-            "conference": {
-                "name": presentation.conference.name,
-                "href": presentation.conference.get_api_url(),
-            }
-        }
-    )
+    if request.method == "GET":
+        presentation = Presentation.objects.get(id=id)
+        return JsonResponse(
+            presentation,
+            encoder=PresentationDetailEncoder,
+            safe=False,
+        )
+    elif request.method == "DELETE":
+        count, _ = Presentation.objects.filter(id=id).delete()
+        return JsonResponse({"deleted": count > 0})
+    else:
+        content = json.loads(request.body)
+        try:
+            if "conference" in content:
+                conference = Conference.objects.get(id=content["conference"])
+                content["conference"] = conference
+        except Conference.DoesNotExist:
+            return JsonResponse(
+                {"message": "conference does not exist"},
+                status=400
+            )
+        Presentation.objects.filter(id=id).update(**content)
+        presentation = Presentation.objects.get(id=id)
+        return JsonResponse(
+            presentation,
+            encoder=PresentationDetailEncoder,
+            safe=False
+        )

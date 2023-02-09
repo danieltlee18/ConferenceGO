@@ -10,7 +10,7 @@ class State(models.Model):
     State is a Value Object and, therefore, does not have a
     direct URL to view it.
     """
-
+    id = models.PositiveIntegerField(primary_key=True)
     name = models.CharField(max_length=20)
     abbreviation = models.CharField(max_length=2)
 
@@ -32,6 +32,7 @@ class Location(models.Model):
     room_count = models.PositiveSmallIntegerField()
     created = models.DateTimeField(auto_now_add=True)
     updated = models.DateTimeField(auto_now=True)
+    location_url = models.URLField(default="")
 
     state = models.ForeignKey(
         State,
