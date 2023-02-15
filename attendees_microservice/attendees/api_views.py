@@ -5,9 +5,9 @@ from django.views.decorators.http import require_http_methods
 import json
 
 
-
 @require_http_methods(["GET", "POST"])
 def api_list_attendees(request, conference_vo_id=None):
+    print(conference_vo_id)
     """
     Lists the attendees names and the link to the attendee
     for the specified conference id.
